@@ -45,7 +45,7 @@ Now let's expand the concept and make the classes a vertical axis against the ti
 
 This grid is crucial to thinking about this problem logically. It will make an effective visual aid because mathematical constraints will focus on regions within the grid.
 
-On the Kotlin side, let's get our core parameters set up. 
+On the Kotlin side, let's get our core parameters set up. We are going to take advantage of Java 8's great LocalDate/LocalTime API to make calendar work easier. 
 
 
 ```kotlin
@@ -74,4 +74,11 @@ val scheduledClasses = listOf(
         ScheduledClass(id=7, name="Sociology 101", hoursLength=1.0, repetitions=2),
         ScheduledClass(id=8, name="Biology 101", hoursLength=1.0, repetitions=2)
 )
+
+
+data class ScheduledClass(val id: Int,
+                          val name: String,
+                          val hoursLength: Double,
+                          val repetitions: Int,
+                          val repetitionGapDays: Int = 2)
 ```
