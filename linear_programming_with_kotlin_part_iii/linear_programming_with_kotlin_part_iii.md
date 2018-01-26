@@ -1,10 +1,14 @@
 # Linear Programming with Kotlin Part III - Generating Multi-day Schedules
 
-In [Part I of this series](http://tomstechnicalblog.blogspot.com/2018/01/kotlinforoperationalplanningandoptimiza.html) I introduced binary programming with [Kotlin](http://kotlinlang.org/) and [ojAlgo](http://ojalgo.org/). In [Part II](http://tomstechnicalblog.blogspot.com/2018/01/kotlin-for-linear-programming-part-ii.html), I introduced continuous variables and optimization concepts. Not long after that, I started building [okAlgo](https://github.com/thomasnield/okAlgo/blob/master/README.md) which is a Kotlin idiomatic extension to ojAlgo. But I digress. In this section, I am going to present something more ambitious and useful: generating mutli-day schedules. This can be applied to scheduling problems such as staffing, manufacturing, transporation, sport team event planning, and even classroom allocation.
+In [Part I of this series](http://tomstechnicalblog.blogspot.com/2018/01/kotlinforoperationalplanningandoptimiza.html) I introduced binary programming with [Kotlin](http://kotlinlang.org/) and [ojAlgo](http://ojalgo.org/). In [Part II](http://tomstechnicalblog.blogspot.com/2018/01/kotlin-for-linear-programming-part-ii.html), I introduced continuous variables and optimization concepts. In this section, I am going to present something more ambitious and useful: generating mutli-day schedules. This can be applied to scheduling problems such as staffing, manufacturing, transportation, sport team event planning, and even classroom allocation.
 
-It is one thing to create an app that allows you to input events into a calendar. It is another for it to automatically generate the calendar of events for you! Rather than relying on iterative brute-force tactics to fit classes into a schedule (which can be hopelessly inefficent), we can achieve this magic one-click generation of a schedule using the power of mathematical modeling.
+On a side note, the first article in this series spurred the largest spike in my blog's short history (about 13K views in one night) primarily because of this [YCombinator discussion thread here](https://news.ycombinator.com/item?id=16234067). It is always enlightening to see a deluge of people weighing in on a topic like this. For instance, it's interesting to see how people react to Kotlin being used for mathematical modeling. Some will insist that dynamic or math-focused languages are more productive for this purpose (e.g. [Julia](https://julialang.org/) and the [JuMP library](https://jump.readthedocs.io/en/latest/quickstart.html#creating-a-model)). Others express a sentiment that these dynamic/math-focused languages do not fit well into a production environment, and the JVM is inevitable in those cases. Anyway I digress, but it is just interesting to see what people value at the expense of other features.
 
-In this article, we will generate a weekly university class schedule against one classroom. We will plot the occupation state grid on two dimensions: classes vs timeline. If we wanted to schedule against multiple rooms, that would be three dimensions: classes vs timeline vs room. We will stick with the former and do 2 dimensions for now. The latter will likely be the next article in this series.
+I started building [okAlgo](https://github.com/thomasnield/okAlgo/blob/master/README.md) which is a Kotlin idiomatic extension to ojAlgo. This will be the first article in the series where I take it for a test-drive, and hopefully will beautify ojAlgo a bit more. I would also love to see ojAlgo ported to [Kotlin/Native](https://kotlinlang.org/docs/reference/native-overview.html) in time.
+
+Back to the problem: It is one thing to create an app that allows you to input events into a calendar. It is another for it to automatically schedule the events for you! Rather than relying on iterative brute-force tactics to fit classes into a schedule (which can be hopelessly inefficent), we can achieve this magic one-click generation of a schedule using the power of mathematical modeling.
+
+In this article, we will generate a weekly university class schedule against one classroom. We will plot the occupation state grid on two dimensions: classes vs timeline. If we wanted to schedule against multiple rooms, that would be three dimensions: classes vs timeline vs room. We will stick with the former for now and do 2 dimensions. The latter will likely be the next article in this series.
 
 ## The Problem
 
@@ -33,11 +37,11 @@ Create a linear/integer programming model that schedules these classes with no o
 
 ## Laying the Groundwork
 
-The _very_ first thing you should notice about this problem is how everything is broken up in "15 minute" blocks. This is not a continuous/linear problem but rather a discrete one, which is how most schedules are built. Imagine that we have created a timeline for the _entire_ week broken up in 15 minute blocks, like this:
+The _very_ first thing you should notice about this problem is how everything is broken up into "15 minute" blocks. This is not a continuous/linear problem but rather a discrete one, which is how most schedules are built. Imagine that we have created a timeline for the _entire_ week broken up in 15 minute blocks, like this:
 
 ![](images/timeline_concept.jpg)
 
-Note that the "..."  is just a placeholder since we do not have enough room to display the 672 blocks for the week (because 672 = 7 days * 24 hours * 4 blocks in an hour).
+Note that the "..."  is just a placeholder since we do not have enough room to display the 672 blocks for the week (because 672 = 7 days \* 24 hours \* 4 blocks in an hour).
 
 Now let's expand the concept and make the classes a vertical axis against the timeline. Each intersection is a "slot" that can be 1 or 0. This binary will serve to indicate whether or not that "slot" is the start time for the first recurrence of that class. We will set them all to 0 for now as shown below:
 
