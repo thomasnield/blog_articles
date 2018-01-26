@@ -1,14 +1,14 @@
 # Linear Programming with Kotlin Part III - Generating Multi-day Schedules
 
-In [Part I of this series](http://tomstechnicalblog.blogspot.com/2018/01/kotlinforoperationalplanningandoptimiza.html) I introduced binary programming with [Kotlin](http://kotlinlang.org/) and [ojAlgo](http://ojalgo.org/). In [Part II], I introduced continuous variables and optimization concepts. Sometime after that, I started building [okAlgo](https://github.com/thomasnield/okAlgo/blob/master/README.md) which is a Kotlin idiomatic extension to ojAlgo. But I digress. In this section, I am going to present something more ambitious and useful: generating mutli-day schedules. This can be applied to scheduling problems such as staffing, manufacturing, transporation, event planning, and even classroom allocation.
+In [Part I of this series](http://tomstechnicalblog.blogspot.com/2018/01/kotlinforoperationalplanningandoptimiza.html) I introduced binary programming with [Kotlin](http://kotlinlang.org/) and [ojAlgo](http://ojalgo.org/). In [Part II](http://tomstechnicalblog.blogspot.com/2018/01/kotlin-for-linear-programming-part-ii.html), I introduced continuous variables and optimization concepts. Not long after that, I started building [okAlgo](https://github.com/thomasnield/okAlgo/blob/master/README.md) which is a Kotlin idiomatic extension to ojAlgo. But I digress. In this section, I am going to present something more ambitious and useful: generating mutli-day schedules. This can be applied to scheduling problems such as staffing, manufacturing, transporation, sport team event planning, and even classroom allocation.
 
-It is one thing to create an app that allows you to input events into a calendar. It is another for it to automatically generate the calendar of events for you! Rather than relying on iterative brute-force tactics to fit classes into a schedule (which can be dysmally and unacceptably inefficent), we can achieve this magic one-click generation of a schedule using the power of mathematical modeling.
+It is one thing to create an app that allows you to input events into a calendar. It is another for it to automatically generate the calendar of events for you! Rather than relying on iterative brute-force tactics to fit classes into a schedule (which can be hopelessly inefficent), we can achieve this magic one-click generation of a schedule using the power of mathematical modeling.
 
 In this article, we will generate a weekly university class schedule against one classroom. We will plot the occupation state grid on two dimensions: classes vs timeline. If we wanted to schedule against multiple rooms, that would be three dimensions: classes vs timeline vs room. We will stick with the former and do 2 dimensions for now. The latter will likely be the next article in this series.
 
 ## The Problem
 
-You need a one-click application to schedule university classes against a single classroom. This classes have differing lengths and may "repeat" throughout the week. Here are the classes:
+You need a one-click application to schedule university classes against a single classroom. These classes have differing lengths and may "repeat" throughout the week. Here are the classes:
 
 * Psych 101 (1 hour, 2 sessions/week)
 * English 101 (1.5 hours, 2 sessions/week)
@@ -22,31 +22,45 @@ You need a one-click application to schedule university classes against a single
 
 Each repetition must start at the same time of day. The day should be broken up in discrete 15 minute increments, and classes can only be scheduled on those increments. In other words, a class can only start on the :00, :15, :30, or :45 of the hour.
 
-The operating week is Monday through Friday. The operatin day is as follows, with a break from 11:30AM to 1:00PM:
+The operating week is Monday through Friday. The operating day is as follows with a break from 11:30AM to 1:00PM:
 
 * 8:00AM-11:30AM
 * 1:00PM-5:00PM
 
-For each day, these classes cannot be scheduled outside these times.
+Classes must be scheduled within these times.
 
 Create a linear/integer programming model that schedules these classes with no overlap and complies with these requirements.
 
 ## Laying the Groundwork
 
-The _very_ first thing you should notice about this problem is the discrete "15 minute" blocks. This is not a continuous/linear problem but rather a discrete one, which is how most schedules are built. Imagine that we have created a timeline for the _entire_ week broken up in 15 minute blocks, like this:
+The _very_ first thing you should notice about this problem is how everything is broken up in "15 minute" blocks. This is not a continuous/linear problem but rather a discrete one, which is how most schedules are built. Imagine that we have created a timeline for the _entire_ week broken up in 15 minute blocks, like this:
 
 ![](images/timeline_concept.jpg)
 
-Note that the "..." block is just a placeholder since we do not have enough room to display the 672 blocks for the week (because 7 days * 24 hours * 4 blocks in an hour).
+Note that the "..."  is just a placeholder since we do not have enough room to display the 672 blocks for the week (because 672 = 7 days * 24 hours * 4 blocks in an hour).
 
-Now let's expand the concept and make the classes a vertical axis against the timeline. Each intersection is a "slot" that can be 1 or 0. This binary will serve to indicate whether or not that "slot" is the start time for the first recurrence of that class. We will set them all to 0 for now.
+Now let's expand the concept and make the classes a vertical axis against the timeline. Each intersection is a "slot" that can be 1 or 0. This binary will serve to indicate whether or not that "slot" is the start time for the first recurrence of that class. We will set them all to 0 for now as shown below:
 
 ![](images/grid_concept.jpg)
 
 This grid is crucial to thinking about this problem logically. It will make an effective visual aid because mathematical constraints will focus on regions within the grid.
 
-On the Kotlin side, let's get our core parameters set up. We are going to take advantage of Java 8's great LocalDate/LocalTime API to make calendar work easier. 
+On the Kotlin side, let's get our core framework set up. First let's improvise a DSL to make ojAlgo a little easier to work with. Note I am creating an extension to ojAlgo called [okAlgo](https://github.com/thomasnield/okAlgo/blob/master/README.md), which will create some nice Kotlin idioms. But for now, this should work.
 
+```kotlin
+import org.ojalgo.optimisation.ExpressionsBasedModel
+import org.ojalgo.optimisation.Variable
+
+// declare model
+val model = ExpressionsBasedModel()
+
+val funcId = AtomicInteger(0)
+val variableId = AtomicInteger(0)
+fun variable() = Variable(variableId.incrementAndGet().toString().let { "Variable$it" }).apply(model::addVariable)
+fun addExpression() = funcId.incrementAndGet().let { "Func$it"}.let { model.addExpression(it) }
+```
+
+We are going to take advantage of Java 8's great LocalDate/LocalTime API to make calendar work easier. Let's set up our core parameters like so:
 
 ```kotlin
 import java.time.LocalDate
@@ -81,4 +95,58 @@ data class ScheduledClass(val id: Int,
                           val hoursLength: Double,
                           val repetitions: Int,
                           val repetitionGapDays: Int = 2)
+```
+
+The `repetitionGapDays` is the minimum number of days need between each recurrence's start time. For instance, since `Psych 100` requires 2 repetitions and defaults to a 2 day gap, if the first class was on MONDAY at 8AM then the second repetition must be scheduled at least 2 days (48 hours) later, which is WEDNESDAY at 8AM. All classes will default to a 2-day gap.
+
+The `Block` class will represent each discrete 15-minute time period. We will use a Kotlin `Sequence` in combination with Java 8's `LocalDate/LocalTime` API to generate all of them for the entire planning window. We will also create a few helper properties to extract the `timeRange` as well as whether it is `withinOperatingDay`. The `withinOperatingDay` property will proactively determine if this `Block` is within an operating day.
+
+
+```kotlin
+data class Block(val dateTimeRange: ClosedRange<LocalDateTime>) {
+
+  val timeRange = dateTimeRange.let {
+     it.start.toLocalTime()..it.endInclusive.toLocalTime()
+  }
+
+  val withinOperatingDay get() =
+      breaks.all { timeRange.start !in it } && timeRange.start in operatingDay
+
+
+    companion object {
+
+        // Operating blocks
+        val all by lazy {
+            generateSequence(operatingDates.start.atStartOfDay()) {
+                it.plusMinutes(15).takeIf {
+                  it.plusMinutes(15) <= operatingDates.endInclusive.atTime(23,59)
+                }
+            }.map { Block(it..it.plusMinutes(15)) }
+             .toList()
+        }
+    }
+}
+```
+
+Note I am going to initialize items for each domain object using a  [`lazy { }` delegate](https://kotlinlang.org/docs/reference/delegated-properties.html#lazy). This is to prevent circular construction issues.
+
+Finally, the `Slot` class will represent an intersection between a `ScheduledClass` and a `Block`. We will generate all of them by pairing every `ScheduledClass` with every `Block`. We will also create a `binary()` ojAlgo variable which will be fixed to `0` if the `Block` is not operable.
+
+```kotlin
+data class Slot(val block: Block, val session: ScheduledClass) {
+    val occupied = variable().binary()
+
+    init {
+      if (!block.withinOperatingDay) occupied.level(0)
+    }
+
+    companion object {
+
+        val all by lazy {
+            Block.all.asSequence().flatMap { b ->
+                ScheduledClass.all.asSequence().map { Slot(b,it) }
+            }.toList()
+        }
+    }
+}
 ```
