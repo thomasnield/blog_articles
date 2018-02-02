@@ -2,13 +2,11 @@
 
 In [Part I of this series](http://tomstechnicalblog.blogspot.com/2018/01/kotlinforoperationalplanningandoptimiza.html) I introduced binary programming with [Kotlin](http://kotlinlang.org/) and [ojAlgo](http://ojalgo.org/). In [Part II](http://tomstechnicalblog.blogspot.com/2018/01/kotlin-for-linear-programming-part-ii.html), I introduced continuous variables and optimization concepts. In this section, I am going to present something more ambitious and useful: generating mutli-day schedules. This can be applied to scheduling problems such as staffing, manufacturing, transportation, sport team event planning, and even classroom allocation.
 
-On a side note, the first article in this series spurred the largest spike in my blog's short history (about 13K views in one night) primarily because of this [YCombinator discussion thread here](https://news.ycombinator.com/item?id=16234067). It is always enlightening to see a deluge of people weighing in on a topic like this. For instance, it's interesting to see how people react to Kotlin being used for mathematical modeling. Some will insist that dynamic or math-focused languages are more productive for this purpose (e.g. [Julia](https://julialang.org/) and the [JuMP library](https://jump.readthedocs.io/en/latest/quickstart.html#creating-a-model)). Others express a sentiment that these dynamic/math-focused languages do not fit well into a production environment, and the JVM is inevitable in those cases. Anyway I digress, but it is just interesting to see what people value at the expense of other features.
+I started building [okAlgo](https://github.com/thomasnield/okAlgo/blob/master/README.md) which is a Kotlin idiomatic extension to ojAlgo. This will be the first article in the series where I take it for a test-drive, and hopefully will beautify ojAlgo a bit more. I would also love to see ojAlgo ported to [Kotlin/Native](https://kotlinlang.org/docs/reference/native-overview.html) in time to take advantage of the native efficiency, but I digress.
 
-I started building [okAlgo](https://github.com/thomasnield/okAlgo/blob/master/README.md) which is a Kotlin idiomatic extension to ojAlgo. This will be the first article in the series where I take it for a test-drive, and hopefully will beautify ojAlgo a bit more. I would also love to see ojAlgo ported to [Kotlin/Native](https://kotlinlang.org/docs/reference/native-overview.html) in time to take advantage of the native efficiency.
+It is one thing to create an app that allows you to input events into a calendar. It is another for it to automatically schedule the events for you! Rather than relying on iterative brute-force tactics to fit classes into a schedule (which can be hopelessly inefficent), we can achieve this magic one-click generation of a schedule using the power of mathematical modeling.
 
-Back to the problem: It is one thing to create an app that allows you to input events into a calendar. It is another for it to automatically schedule the events for you! Rather than relying on iterative brute-force tactics to fit classes into a schedule (which can be hopelessly inefficent), we can achieve this magic one-click generation of a schedule using the power of mathematical modeling.
-
-In this article, we will generate a weekly university class schedule against one classroom. We will plot the occupation state grid on two dimensions: classes vs timeline. If we wanted to schedule against multiple rooms, that would be three dimensions: classes vs timeline vs room. We will stick with the former for now and do 2 dimensions. The latter will likely be the next article in this series.
+In this article, we will generate a weekly university class schedule against one classroom. We will plot the occupation state grid on two dimensions: classes vs block time. If we wanted to schedule against multiple rooms, that would be three dimensions: classes vs block time vs room. We will stick with the former for now and do 2 dimensions. The latter will likely be the next article in this series.
 
 ## The Problem
 
@@ -24,7 +22,7 @@ You need a one-click application to schedule university classes against a single
 * Biology 101 (1 hour, 2 sessions/week)
 
 
-Each repetition must start at the same time of day. The day should be broken up in discrete 15 minute increments, and classes can only be scheduled on those increments. In other words, a class can only start on the :00, :15, :30, or :45 of the hour.
+Each session must start at the same time of day. The day should be broken up in discrete 15 minute increments, and classes can only be scheduled on those increments. In other words, a class can only start/end on the :00, :15, :30, or :45 of the hour.
 
 The operating week is Monday through Friday. The operating day is as follows with a break from 11:30AM to 1:00PM:
 
@@ -33,7 +31,7 @@ The operating week is Monday through Friday. The operating day is as follows wit
 
 Classes must be scheduled within these times.
 
-Create a linear/integer programming model that schedules these classes with no overlap and complies with these requirements.
+Create a discrete programming model that schedules these classes with no overlap and complies with these requirements.
 
 ## Laying the Groundwork
 
@@ -43,13 +41,13 @@ The _very_ first thing you should notice about this problem is how everything is
 
 Note that the "..."  is just a placeholder since we do not have enough room to display the 672 blocks for the week (because 672 = 7 days \* 24 hours \* 4 blocks in an hour).
 
-Now let's expand the concept and make the classes a vertical axis against the timeline. Each intersection is a "slot" that can be 1 or 0. This binary will serve to indicate whether or not that "slot" is the start time for the first recurrence of that class. We will set them all to 0 for now as shown below:
+Now let's expand this concept and make the classes a vertical axis against the timeline. Each intersection is a "slot" that can be 1 or 0. This binary will serve to indicate whether or not that "slot" is the start time for the first recurrence of that class. We will set them all to 0 for now as shown below:
 
 ![](images/grid_concept.jpg)
 
 This grid is crucial to thinking about this problem logically. It will make an effective visual aid because mathematical constraints will focus on regions within the grid.
 
-On the Kotlin side, let's get our core framework set up. First let's improvise a DSL to make ojAlgo a little easier to work with. Note I am creating an extension to ojAlgo called [okAlgo](https://github.com/thomasnield/okAlgo/blob/master/README.md), which will create some nice Kotlin idioms. But for now, this should work.
+On the Kotlin side, let's get our infrastructure set up. First let's improvise a DSL to make ojAlgo a little easier to work with. Note I am creating an extension to ojAlgo called [okAlgo](https://github.com/thomasnield/okAlgo/blob/master/README.md), which will create some nice Kotlin idioms. But for now, this should work.
 
 ```kotlin
 import org.ojalgo.optimisation.ExpressionsBasedModel
