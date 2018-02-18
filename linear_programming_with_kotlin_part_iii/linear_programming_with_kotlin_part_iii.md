@@ -1,12 +1,15 @@
 # Linear Programming with Kotlin Part III - Generating Multi-day Schedules
 
+
 In [Part I of this series](http://tomstechnicalblog.blogspot.com/2018/01/kotlinforoperationalplanningandoptimiza.html) I introduced binary programming with [Kotlin](http://kotlinlang.org/) and [ojAlgo](http://ojalgo.org/). In [Part II](http://tomstechnicalblog.blogspot.com/2018/01/kotlin-for-linear-programming-part-ii.html), I introduced continuous variables and optimization concepts. In this section, I am going to present something more ambitious and useful: generating mutli-day schedules. This can be applied to scheduling problems such as staffing, manufacturing, transportation, sport team event planning, and even classroom allocation.
 
-I started building [okAlgo](https://github.com/thomasnield/okAlgo/blob/master/README.md) which is a Kotlin idiomatic extension to ojAlgo. This will be the first article in the series where I take it for a test-drive, and hopefully will beautify ojAlgo a bit more. I would also love to see ojAlgo ported to [Kotlin/Native](https://kotlinlang.org/docs/reference/native-overview.html) in time to take advantage of the native efficiency, but I digress.
+I started building [okAlgo](https://github.com/thomasnield/okAlgo/blob/master/README.md) which contains Kotlin idiomatic extensions to ojAlgo. Hopefully I will get a chance to release this soon.
 
-It is one thing to create an app that allows you to input events into a calendar. It is another for it to automatically schedule the events for you! Rather than relying on iterative brute-force tactics to fit classes into a schedule (which can be hopelessly inefficent), we can achieve this magic one-click generation of a schedule using the power of mathematical modeling.
+It is one thing to create an app that allows you to input events into a calendar. It is another for it to automatically schedule the events for you. Rather than relying on iterative brute-force tactics to fit classes into a schedule (which can be hopelessly inefficent), we can achieve this magic one-click generation of a schedule using the power of mathematical modeling.
 
 In this article, we will generate a weekly university class schedule against one classroom. We will plot the occupation state grid on two dimensions: classes vs block time. If we wanted to schedule against multiple rooms, that would be three dimensions: classes vs block time vs room. We will stick with the former for now and do 2 dimensions. The latter will likely be the next article in this series.
+
+>Before I start, I found a challenging but useful [Coursera class on discrete optimization](https://www.coursera.org/learn/discrete-optimization/). This class is fairly ambitious and I hope to find time to complete it. It goes into different techniques to build optimization models from scratch using Python, Java, or any other platform of your choice. So far I highly recommend this class if you want to commit 10-15 hours a week to this topic.
 
 ## The Problem
 
@@ -39,9 +42,9 @@ The _very_ first thing you should notice about this problem is how everything is
 
 ![](images/timeline_concept.jpg)
 
-Note that the "..."  is just a placeholder since we do not have enough room to display the 672 blocks for the week (because 672 = 7 days \* 24 hours \* 4 blocks in an hour).
+Note that the "..."  is just a placeholder since we do not have enough room to display the 672 blocks for the week (672 = 7 days \* 24 hours \* 4 blocks in an hour).
 
-Now let's expand this concept and make the classes a vertical axis against the timeline. Each intersection is a "slot" that can be 1 or 0. This binary will serve to indicate whether or not that "slot" is the start time for the first recurrence of that class. We will set them all to 0 for now as shown below:
+Now let's expand this concept and make the classes an axis against the timeline. Each intersection is a "slot" that can be 1 or 0. This binary will serve to indicate whether or not that "slot" is the start time for the first recurrence of that class. We will set them all to 0 for now as shown below:
 
 ![](images/grid_concept.jpg)
 
@@ -132,7 +135,7 @@ data class Block(val dateTimeRange: ClosedRange<LocalDateTime>) {
 
 Note I am going to initialize items for each domain object using a  [`lazy { }` delegate](https://kotlinlang.org/docs/reference/delegated-properties.html#lazy). This is to prevent circular construction issues.
 
-Finally, the `Slot` class will represent an intersection between a `ScheduledClass` and a `Block`. We will generate all of them by pairing every `ScheduledClass` with every `Block`. We will also create a `binary()` ojAlgo variable which will be fixed to `0` if the `Block` is not operable.
+Finally, the `Slot` class will represent an intersection between a `ScheduledClass` and a `Block`. We will generate all of them by pairing every `ScheduledClass` with every `Block`. We will also create a `binary()` ojAlgo variable which will be fixed to `0` if the `Block` is not within the operating day.
 
 ```kotlin
 data class Slot(val block: Block, val session: ScheduledClass) {
@@ -152,3 +155,27 @@ data class Slot(val block: Block, val session: ScheduledClass) {
     }
 }
 ```
+
+## Coming Up with a Model
+
+In the first [article in this series](http://tomstechnicalblog.blogspot.com/2018/01/kotlinforoperationalplanningandoptimiza.html), I showed an approach to capture the necessary contiguous blocks for a given session. I found this approach to scale poorly with ojAlgo, although there are changes in the upcoming release (ordered sets) that might work with this approach. I could also drop in a $10K [CPLEX license](https://www.ibm.com/analytics/data-science/prescriptive-analytics/cplex-optimizer) which might hammer a solve quickly as well.
+
+But I like things to remain free and open-source where possible, so I concentrated really hard and came up with a better mathematical model. It is highly abstract but it is powerful and effective for this particular problem.
+
+We are going to label each Slot as `1` or `0` *only to indicate the start of the first class repetition*. Here is one possible iteration the solver may come up with, where the first Psych 101 class starts on MON 9:00AM and Sociology 101 starts on MON 9:45AM. Here it is on our grid:
+
+![](images/timeline_concept_fail.jpg)
+
+Study this scenario closely. Do you see a pattern for an invalid case? In the MON 9:45AM block, Psych 101 (which requires four blocks) and Sociology 101 (which also requires four blocks) are in conflict with each other. Visually, yes you can see the conflict. But how do you describe it?
+
+The sum of schedules class blocks that "touch" the 9:45AM block must be less than or equal to 1. A sum of `1` effectively means only one class is taking up that block, and `0` means no classes are occupying that block at all (also valid). This particular case fails because the sum of "touching" blocks is 2.
+
+If we shifted Sociology 101 to 10:00AM, the sum would then be `1` and all is good.
+
+![](images/timeline_concept_success.jpg)
+
+We need to apply this logic to every block across the entire timeline, querying for earlier slots for each class that impact each block, and dictate their sum must be no greater than 1. This abstract but powerful idea achieves everything we need.
+
+This can even account for the recurrences too. After all, We put a `1` in a slot to indicate the candidate start time _of the first class_. The repetitions will be accounted for and queried by each block.
+
+Okay is your head spinning yet? The power of this model is not so much the math, but the ability for each block to query the slots that impact it. That is where the hard work will happen, and Kotlin's std lib can nail this effectively. We then dictate the sum of those slots must not be greater than 1. 
