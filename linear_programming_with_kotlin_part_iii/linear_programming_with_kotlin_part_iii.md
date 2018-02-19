@@ -158,24 +158,28 @@ data class Slot(val block: Block, val session: ScheduledClass) {
 
 ## Coming Up with a Model
 
-In the first [article in this series](http://tomstechnicalblog.blogspot.com/2018/01/kotlinforoperationalplanningandoptimiza.html), I showed an approach to capture the necessary contiguous blocks for a given session. I found this approach to scale poorly with ojAlgo, although there are changes in the upcoming release (support for ordered sets) that might work with this approach. I could also drop in a $10K [CPLEX license](https://www.ibm.com/analytics/data-science/prescriptive-analytics/cplex-optimizer) which might execute a solve quickly as well.
+In the first [article in this series](http://tomstechnicalblog.blogspot.com/2018/01/kotlinforoperationalplanningandoptimiza.html), I showed an approach to capture the necessary contiguous blocks for a given session. I found this approach to scale poorly with ojAlgo, although there are changes in the upcoming release (support for ordered sets) that might work with this approach. I could also drop in a $10K [CPLEX license](https://www.ibm.com/analytics/data-science/prescriptive-analytics/cplex-optimizer) which also might execute a solve quickly.
 
-But I like things to remain free and open-source where possible, so I concentrated really hard and came up with a better mathematical model. It is highly abstract but it is powerful and effective for this particular problem.
+But I like things to remain free and open-source where possible, so I concentrated hard and came up with a better mathematical model. It is highly abstract but powerful and effective for this particular problem.
 
-We are going to label each Slot as `1` or `0` *only to indicate the start of the first class repetition*. Here is one possible iteration the solver may come up with, where the first Psych 101 class starts on MON 9:00AM and Sociology 101 starts on MON 9:45AM. Here it is on our grid:
+We are going to label each `Slot` as `1` or `0` *to indicate the start of the first class repetition*. Here is one possible iteration the solver may come up with, where the first Psych 101 class starts on MON 9:00AM and Sociology 101 starts on MON 9:45AM. Here it is on our grid:
 
 ![](images/timeline_concept_fail.jpg)
 
-Study this scenario closely. Do you see a pattern for an invalid case? In the MON 9:45AM block, Psych 101 (which requires four blocks) and Sociology 101 (which also requires four blocks) are in conflict with each other. Visually, yes you can see the conflict. But how do you describe it?
+Study this scenario closely. Do you see a pattern for an invalid case? In the MON 9:45AM block, Psych 101 (which requires four blocks) and Sociology 101 (which also requires four blocks) are in conflict with each other. Visually, you might be able to see the conflict. But how do you describe it?
 
-The sum of schedules class blocks that "touch" the 9:45AM block must be less than or equal to 1. A sum of `1` effectively means only one class is taking up that block, and `0` means no classes are occupying that block at all (also valid). This particular case fails because the sum of "touching" blocks is 2.
+The sum of scheduled class blocks that "touch" the 9:45AM block must be less than or equal to 1. A sum of `1` effectively means only one class is taking up that block, and `0` means no classes are occupying that block at all (also valid). This particular case fails because the sum of "touching" blocks is 2.
 
 If we shifted Sociology 101 to 10:00AM, the sum would then be `1` and all is good.
 
 ![](images/timeline_concept_success.jpg)
 
-We need to apply this logic to every block across the entire timeline, querying for earlier slots for each class that impact each block, and dictate their sum must be no greater than 1. This abstract but powerful idea achieves everything we need.
+We need to apply this logic to every block across the entire timeline, querying for earlier slots for each class that impact each block, and dictate their sum must be no greater than 1. This abstract but powerful idea achieves everything we need. Here is what this looks like in practice below, where all slots affecting the 9:45AM block are highlighted in blue. All of these blue blocks must sum to no more than 1.
 
-This can even account for the recurrences too. After all, We put a `1` in a slot to indicate the candidate start time _of the first class_. The repetitions will be accounted for and queried by each block.
+![](images/timeline_concept_coverage1.jpg)
 
-Okay is your head spinning yet? The power of this model is not so much the math, but the ability for each block to query the slots that impact it. That is where the hard work will happen, and Kotlin's std lib can nail this effectively. We then dictate the sum of those slots must not be greater than 1.
+This can even account for the recurrences too. After all, We put a `1` in a slot to indicate the candidate start time _of the first class_. If we were looking at the 9:45AM block on Friday, we would query for time slots earlier in the week that would result in the 9:45AM block being occupied. Here is a wide visual below. The sum of these blue slots must be no greater than 1. 
+
+![](images/timeline_concept_coverage3.jpg)
+
+Okay is your head spinning yet? The power of this model is not so much the math, but the ability for each block to query the slots that impact it. That is where the hard work will happen, and Kotlin's stdlib can nail this effectively. We then dictate the sum of those slots must not be greater than 1. The benefit is we do not have create any new variables, and can constrain the existing slot binary variables with a series of sum constraints.
