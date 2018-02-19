@@ -158,7 +158,7 @@ data class Slot(val block: Block, val session: ScheduledClass) {
 
 ## Coming Up with a Model
 
-In the first [article in this series](http://tomstechnicalblog.blogspot.com/2018/01/kotlinforoperationalplanningandoptimiza.html), I showed an approach to capture the necessary contiguous blocks for a given session. I found this approach to scale poorly with ojAlgo, although there are changes in the upcoming release (ordered sets) that might work with this approach. I could also drop in a $10K [CPLEX license](https://www.ibm.com/analytics/data-science/prescriptive-analytics/cplex-optimizer) which might hammer a solve quickly as well.
+In the first [article in this series](http://tomstechnicalblog.blogspot.com/2018/01/kotlinforoperationalplanningandoptimiza.html), I showed an approach to capture the necessary contiguous blocks for a given session. I found this approach to scale poorly with ojAlgo, although there are changes in the upcoming release (support for ordered sets) that might work with this approach. I could also drop in a $10K [CPLEX license](https://www.ibm.com/analytics/data-science/prescriptive-analytics/cplex-optimizer) which might execute a solve quickly as well.
 
 But I like things to remain free and open-source where possible, so I concentrated really hard and came up with a better mathematical model. It is highly abstract but it is powerful and effective for this particular problem.
 
@@ -178,4 +178,4 @@ We need to apply this logic to every block across the entire timeline, querying 
 
 This can even account for the recurrences too. After all, We put a `1` in a slot to indicate the candidate start time _of the first class_. The repetitions will be accounted for and queried by each block.
 
-Okay is your head spinning yet? The power of this model is not so much the math, but the ability for each block to query the slots that impact it. That is where the hard work will happen, and Kotlin's std lib can nail this effectively. We then dictate the sum of those slots must not be greater than 1. 
+Okay is your head spinning yet? The power of this model is not so much the math, but the ability for each block to query the slots that impact it. That is where the hard work will happen, and Kotlin's std lib can nail this effectively. We then dictate the sum of those slots must not be greater than 1.
