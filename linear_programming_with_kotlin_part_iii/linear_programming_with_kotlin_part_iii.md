@@ -249,7 +249,7 @@ data class ScheduledClass(val id: Int,
     }
 
     /** yields slots that affect the given block for this scheduled class */
-    fun anchorOverlapFor(block: Block) = slotGroups.asSequence()
+    fun affectingSlotsFor(block: Block) = slotGroups.asSequence()
             .filter { it.flatMap { it }.any { it.block == block } }
             .map { it.first().first() }
 
