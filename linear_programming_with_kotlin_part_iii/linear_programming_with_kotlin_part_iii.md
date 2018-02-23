@@ -1,6 +1,3 @@
-# Linear Programming with Kotlin Part III - Generating Multi-day Schedules
-
-
 In [Part I of this series](http://tomstechnicalblog.blogspot.com/2018/01/kotlinforoperationalplanningandoptimiza.html) I introduced binary programming with [Kotlin](http://kotlinlang.org/) and [ojAlgo](http://ojalgo.org/). In [Part II](http://tomstechnicalblog.blogspot.com/2018/01/kotlin-for-linear-programming-part-ii.html), I introduced continuous variables and optimization concepts. In this section, I am going to present something more ambitious and useful: generating multi-day schedules. This can be applied to scheduling problems such as staffing, manufacturing, transportation, classroom allocation, and even sport event planning.
 
 I started building [okAlgo](https://github.com/thomasnield/okAlgo/blob/master/README.md) which contains Kotlin idiomatic extensions to ojAlgo. Hopefully I will get a chance to release this soon.
