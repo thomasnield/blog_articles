@@ -618,6 +618,6 @@ Biology 101- WEDNESDAY/FRIDAY 15:00-16:00
 
 If we were to plot this out visually, here is what the schedule looks like:
 
-![](https://github.com/thomasnield/blog_articles/blob/master/linear_programming_with_kotlin_part_iii/images/schedule_output.png?raw=true)
+![](https://github.com/thomasnield/blog_articles/blob/master/linear_programming_with_kotlin_part_iii/images/schedule_output2.png?raw=true)
 
 Hopefully you guys find this fascinating and useful. I will definitely post a few more articles on Kotlin for linear programming when I find some interesting use cases.
