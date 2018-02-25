@@ -336,7 +336,7 @@ data class ScheduledClass(val id: Int,
 }
 ```
 
-Now going back to the `Block` class, I will add an `addConstraints()` function that will level any slots that are not within the operating day to 0. Otherwise, it will query all the affecting blocks for each `ScheduledClass` and say they must all sum to no more than 1. This ensures no overlap between classes will occur.
+lNow going back to the `Block` class, I will add an `addConstraints()` function. It will query all the affecting blocks for each `ScheduledClass` and say they must all sum to no more than 1. This ensures no overlap between classes will occur. But if a block is not within an operating day, not only should its slots be fixed to  `0`, but _all_ of its affecting slots should be fixed to `0`.
 
 ```kotlin
 /** A discrete, 15-minute chunk of time a class can be scheduled on */
